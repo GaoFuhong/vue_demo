@@ -1,51 +1,106 @@
 <template>
-  <div>
-    <header class="site-header jumbotron">
-      <div class="container">
-        <div class="row">
-          <div class="col-xs-12">
-            <h1>请发表对Vue的评论</h1>
-          </div>
-        </div>
-      </div>
-    </header>
-    <div class="container">
-      <Add :addComment = "addComment"/>
-      <List :comments = "comments" :deleteComment="deleteComment"/>
+  <div class="todo-container">
+    <div class="todo-wrap">
+      <!-- 给TodoHeader标签绑定addTodo事件监听 -->
+      <!-- <todo-header @addTodo="addTodo"/> -->
+      <todo-header ref="header"/>
+      <todo-list :todos="todos"/>
+      <todo-footer :todos="todos" :deleteCompletedTodos="deleteCompletedTodos" :selectAllTodos="selectAllTodos"/>
+      <todo-footer>
+        <input type="checkbox" v-model="isAllcheck" slot="checkAll"/>
+        <span slot="count">已完成{{completedSize}}/ 全部{{todos.length}}</span>
+        <button class="btn btn-danger" v-show="completedSize > 0" @click="deleteCompletedTodos" slot="clear">清除已完成任务</button>
+      </todo-footer>
     </div>
   </div>
 </template>
 
 <script>
-import Add from './components/Add.vue'
-import List from './components/List.vue'
+import Pubsub from 'pubsub-js'
+import TodoHeader from './components/TodoHeader.vue'
+import TodoList from './components/TodoList.vue'
+import TodoFooter from './components/TodoFooter.vue'
+import storageUtil from './util/storageUtil'
 export default {
   components: {
-    Add,
-    List
+    TodoHeader,
+    TodoList,
+    TodoFooter
   },
-  props: ['index'],
   data () {
     return {
-      comments: [ // 数据在哪个组件，更新数据的方法就在哪个组件
-        {name: 'Bob', content: 'Vue 难啊！'},
-        {name: 'Jack', content: 'Vue so easy！'},
-        {name: 'Rose', content: 'Vue 还行！'}
-      ]
+      // 从localStorage读取todos
+      todos: storageUtil.readTodos()
     }
   },
-  methods: {
-    // 添加评论
-    addComment (comment) {
-      this.comments.unshift(comment)
+  computed: {
+    completedSize () {
+      return this.todos.reduce((preTotal, todo) => (preTotal + (todo.completed ? 1 : 0)), 0)
     },
-    // 删除评论
-    deleteComment (index) {
-      this.comments.splice(index, 1)
+    isAllcheck: {
+      get () {
+        return this.completedSize === this.todos.length && this.todos.length > 0
+      },
+      set (value) {
+        this.selectAllTodos(value)
+      }
+    }
+  },
+  // 执行异步代码
+  mounted () {
+    this.$refs.header.$on('addTodo', this.addTodo)
+    // 订阅消息
+    Pubsub.subscribe('deleteTodo', (msg, index) => {
+      this.deleteTodo(index)
+    })
+  },
+  methods: {
+    addTodo (todo) {
+      this.todos.unshift(todo)
+    },
+    deleteTodo (index) {
+      this.todos.splice(index, 1)
+    },
+    deleteCompletedTodos () {
+      this.todos = this.todos.filter(todo => !todo.completed)
+    },
+    selectAllTodos (isCheck) {
+      this.todos.forEach(todo => (todo.completed = isCheck))
+    }
+  },
+  watch: {
+    todos: {
+      deep: true, // 深度监视
+      handler: storageUtil.saveTodos
     }
   }
 }
 </script>
 
 <style>
+.todo-container {
+  width: 600px;
+  margin: 0 auto;
+}
+.todo-container .todo-wrap {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
+.todo-footer label {
+  display: inline-block;
+  margin-right: 20px;
+  cursor: pointer;
+}
+.todo-footer label input {
+  position: relative;
+  top: -1px;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+
+.todo-footer button {
+  float: right;
+  margin-top: 5px;
+}
 </style>
